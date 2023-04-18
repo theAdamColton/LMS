@@ -194,6 +194,34 @@ namespace LMS.Areas.Identity.Pages.Account
         /// <returns>The uID of the new user</returns>
         string CreateNewUser( string firstName, string lastName, DateTime DOB, string departmentAbbrev, string role )
         {
+            if (role=="Student")
+            {
+                var newStudent = new Student();
+                newStudent.FName = firstName;
+                newStudent.LName = lastName;
+                newStudent.Dob = DateOnly.FromDateTime(DOB);
+                newStudent.Major = departmentAbbrev;
+                db.Add( newStudent );
+                return newStudent.UId;
+            } else if (role=="Administrator")
+            {
+                var newAdministrator = new Administrator();
+                newAdministrator.FName = firstName;
+                newAdministrator.LName = lastName; 
+                newAdministrator.Dob = DateOnly.FromDateTime(DOB);
+                db.Add(newAdministrator);
+                return newAdministrator.UId;
+            } else if (role=="Professor")
+            {
+                var newProfessor = new Professor();
+                newProfessor.FName = firstName;
+                newProfessor.LName = lastName;
+                newProfessor.Dob = DateOnly.FromDateTime(DOB);
+                newProfessor.WorksIn = departmentAbbrev;
+                db.Add(newProfessor);
+                return newProfessor.UId;
+            }
+
             return "unknown";
         }
 
