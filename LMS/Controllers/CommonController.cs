@@ -28,8 +28,8 @@ namespace LMS.Controllers
         /// </summary>
         /// <returns>The JSON array</returns>
         public IActionResult GetDepartments()
-        {            
-            return Json(null);
+        {
+            return Json(db.Departments.Select(d => new { name = d.Name, subject = d.Subject }).ToArray());
         }
 
 
@@ -65,8 +65,9 @@ namespace LMS.Controllers
         /// <param name="number">The course number, as in 5530</param>
         /// <returns>The JSON array</returns>
         public IActionResult GetClassOfferings(string subject, int number)
-        {            
-            return Json(null);
+        {
+            var course = db.Courses.Where(c => c.Department == subject && c.Number == number).SingleOrDefault();
+            return Json(course.Classes.Select(c => new { season = c.Season, year = c.Year, location = c.Location, start = c.StartTime, end = c.EndTime, fname = c.TaughtByNavigation.FName, lname=c.TaughtByNavigation.LName}).ToArray());
         }
 
         /// <summary>
@@ -83,7 +84,10 @@ namespace LMS.Controllers
         /// <returns>The assignment contents</returns>
         public IActionResult GetAssignmentContents(string subject, int num, string season, int year, string category, string asgname)
         {            
-            return Content("");
+            var course = db.Courses.Where(c => c.Department == subject && c.Number == num).SingleOrDefault();
+            var thisClass = course.Classes.Where(c => c.Season == season && c.Year == year).SingleOrDefault();
+            var assignment = db.Assignments.Where(ass => ass.CategoryNavigation.InClass == thisClass.ClassId && ass.Name == asgname && ass.CategoryNavigation.Name == category).SingleOrDefault();
+            return Content(assignment.Contents);
         }
 
 
@@ -103,7 +107,17 @@ namespace LMS.Controllers
         /// <returns>The submission text</returns>
         public IActionResult GetSubmissionText(string subject, int num, string season, int year, string category, string asgname, string uid)
         {            
-            return Content("");
+            var course = db.Courses.Where(c => c.Department == subject && c.Number == num).SingleOrDefault();
+            var thisClass = course.Classes.Where(c => c.Season == season && c.Year == year).SingleOrDefault();
+            var assignment = db.Assignments.Where(ass => ass.CategoryNavigation.InClass == thisClass.ClassId && ass.Name == asgname && ass.CategoryNavigation.Name == category).SingleOrDefault();
+            var submission = assignment.Submissions.Where(sub => sub.Student == uid).SingleOrDefault();
+            if (submission == null)
+            {
+                return Content("");
+            } else
+            {
+                return Content(submission.SubmissionContents);
+            }
         }
 
 
@@ -124,7 +138,22 @@ namespace LMS.Controllers
         /// or an object containing {success: false} if the user doesn't exist
         /// </returns>
         public IActionResult GetUser(string uid)
-        {           
+        {
+            var prof = db.Professors.Where(p => p.UId == uid).SingleOrDefault();
+            if (prof != null)
+            {
+                return Json(new { fname = prof.FName, lname = prof.LName, uid = prof.UId, department = prof.WorksInNavigation.Name });
+            }
+            var stud = db.Students.Where(s => s.UId == uid).SingleOrDefault();
+            if (stud != null)
+            {
+                return Json(new { fname = stud.FName, lname = stud.LName, uid = stud.UId, department = stud.MajorNavigation.Name });
+            }
+            var admin = db.Administrators.Where(a => a.UId == uid).SingleOrDefault();
+            if (admin != null)
+            {
+                return Json(new { fname = admin.FName, lname = admin.LName, uid = admin.UId });
+            }
             return Json(new { success = false });
         }
 

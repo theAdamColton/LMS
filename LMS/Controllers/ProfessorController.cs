@@ -229,7 +229,7 @@ namespace LMS_CustomIdentity.Controllers
             }
             var assignmentCategory = new AssignmentCategory();
             assignmentCategory.Name = category;
-            assignmentCategory.Weight = catweight;
+            assignmentCategory.Weight = (uint)catweight;
             assignmentCategory.InClassNavigation = thisClass;
             db.Add(assignmentCategory);
             return Json(new { success = true });
