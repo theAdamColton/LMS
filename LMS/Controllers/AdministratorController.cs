@@ -75,8 +75,13 @@ namespace LMS.Controllers
         /// <returns>The JSON result</returns>
         public IActionResult GetCourses(string subject)
         {
-            
-            return Json(null);
+            var courses = db.Courses.Where(d => d.DepartmentNavigation.Subject == subject);
+            if (courses.Count() == 0)
+            {
+                return Json(Enumerable.Empty<Object>());
+            }
+            var resultList = courses.Select(c => new {number= c.Number, name= c.Name}).ToList();
+            return Json(resultList);
         }
 
         /// <summary>
@@ -90,8 +95,9 @@ namespace LMS.Controllers
         /// <returns>The JSON result</returns>
         public IActionResult GetProfessors(string subject)
         {
-            
-            return Json(null);
+            var professers = db.Professors.Where(p => p.WorksInNavigation.Subject == subject);
+            var resultList = professers.Select(p => new { lname = p.LName, fname = p.FName, uid = p.UId }).ToList();
+            return Json(resultList);
             
         }
 
@@ -107,8 +113,19 @@ namespace LMS.Controllers
         /// <returns>A JSON object containing {success = true/false}.
         /// false if the course already exists, true otherwise.</returns>
         public IActionResult CreateCourse(string subject, int number, string name)
-        {           
-            return Json(new { success = false });
+        {
+            try
+            {
+                Course newCourse = new Course();
+                newCourse.Department = subject;
+                newCourse.Number = (uint)number;
+                newCourse.Name = name;
+                db.Add(newCourse); db.SaveChanges();
+                return Json(new { success = true });
+            } catch (Exception ex) { 
+                System.Diagnostics.Debug.WriteLine("Create course error",ex.Message); 
+                return Json(new { success = false });
+            }
         }
 
 
@@ -130,8 +147,47 @@ namespace LMS.Controllers
         /// a Class offering of the same Course in the same Semester,
         /// true otherwise.</returns>
         public IActionResult CreateClass(string subject, int number, string season, int year, DateTime start, DateTime end, string location, string instructor)
-        {            
-            return Json(new { success = false});
+        {
+            var course = db.Courses.Where(c => c.Number == number && c.Department == subject).SingleOrDefault();
+            if (course == null)
+            {
+                return Json(new { success = false});
+            }
+
+            var startTime = TimeOnly.FromDateTime(start);
+            var endTime = TimeOnly.FromDateTime(end);
+
+            // is true if there exists any classes of any course that are in the
+            // same location during any time in the start-end range of the same
+            // semester
+            var anySameSemesterAndLocationClasses = db.Classes.Where(
+                c => c.Season == season && 
+                c.Year == year && 
+                ((c.StartTime <= startTime) && (c.EndTime <= endTime)) &&
+                c.Location == location
+            ).Any();
+            if (anySameSemesterAndLocationClasses)
+            {
+                return Json(new { success = false});
+            }
+
+            // is true if there exists any offering of course during the same semester and year
+            var anyClassOfferingOfSameCourseSameSemester = course.Classes.Where(c => c.Season == season && c.Year == year).Any();
+            if (anyClassOfferingOfSameCourseSameSemester)
+            {
+                return Json(new { success = false});
+            }
+
+            var newClass = new Class();
+            newClass.StartTime = startTime;
+            newClass.EndTime = endTime;
+            newClass.Year = (uint)year;
+            newClass.Season = season;
+            newClass.Location = location;
+            newClass.TaughtBy = instructor;
+            newClass.ListingNavigation = course;
+            db.Add(newClass);
+            return Json(new { success = true});
         }
 
 
