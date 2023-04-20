@@ -180,8 +180,45 @@ namespace LMS.Controllers
         /// <param name="uid">The uid of the student</param>
         /// <returns>A JSON object containing a single field called "gpa" with the number value</returns>
         public IActionResult GetGPA(string uid)
-        {            
-            return Json(null);
+        {
+            var student = db.Students.Where(s => s.UId == uid).FirstOrDefault();
+            var grades = student.Enrolleds.Select(e => e.Grade).ToArray();
+            var grade_points = grades.Select(g => {
+                if (g == "A")
+                    return 4.0;
+                if (g == "A-")
+                    return 3.7;
+                if (g == "B+")
+                    return 3.3;
+                if (g == "B")
+                    return 3.0;
+                if (g == "C+")
+                    return 2.3;
+                if (g == "C")
+                    return 2.0;
+                if (g == "C-")
+                    return 1.7;
+                if (g == "D+")
+                    return 1.3;
+                if (g == "D")
+                    return 1.0;
+                if (g == "D-")
+                    return 0.7;
+                if (g == "E")
+                    return 0.0;
+                if (g == "--")
+                    return 0.0;
+                return -100000000000.0;
+            });
+            double gpa = 0.0;
+
+            var num_gps_to_count = grades.Where(g => g != "--").Count();
+
+            if (num_gps_to_count > 0)
+            {
+                gpa = grade_points.Sum() / num_gps_to_count;
+            }
+            return Json(gpa);
         }
                 
         /*******End code to modify********/
