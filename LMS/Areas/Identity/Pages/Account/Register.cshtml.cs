@@ -181,6 +181,11 @@ namespace LMS.Areas.Identity.Pages.Account
         }
 
         /*******Begin code to modify********/
+        string GetUID()
+        {
+            var number = db.Students.Count() + db.Professors.Count() + db.Administrators.Count();
+            return $"u{number:0000000}";
+        }
 
         /// <summary>
         /// Create a new user of the LMS with the specified information and add it to the database.
@@ -194,35 +199,45 @@ namespace LMS.Areas.Identity.Pages.Account
         /// <returns>The uID of the new user</returns>
         string CreateNewUser( string firstName, string lastName, DateTime DOB, string departmentAbbrev, string role )
         {
-            if (role=="Student")
+            try
             {
-                var newStudent = new Student();
-                newStudent.FName = firstName;
-                newStudent.LName = lastName;
-                newStudent.Dob = DateOnly.FromDateTime(DOB);
-                newStudent.Major = departmentAbbrev;
-                db.Add( newStudent );
-                return newStudent.UId;
-            } else if (role=="Administrator")
+                var uID = GetUID();
+                System.Diagnostics.Debug.WriteLine("UID", uID);
+                System.Diagnostics.Debug.WriteLine("fn", firstName);
+                if (role=="Student")
+                {
+                    var newStudent = new Student();
+                    newStudent.FName = firstName;
+                    newStudent.LName = lastName;
+                    newStudent.Dob = DateOnly.FromDateTime(DOB);
+                    newStudent.Major = departmentAbbrev;
+                    newStudent.UId = uID;   
+                    db.Add( newStudent );
+                } else if (role=="Administrator")
+                {
+                    var newAdministrator = new Administrator();
+                    newAdministrator.FName = firstName;
+                    newAdministrator.LName = lastName; 
+                    newAdministrator.Dob = DateOnly.FromDateTime(DOB);
+                    newAdministrator.UId = uID;
+                    db.Add(newAdministrator);
+                } else if (role=="Professor")
+                {
+                    var newProfessor = new Professor();
+                    newProfessor.FName = firstName;
+                    newProfessor.LName = lastName;
+                    newProfessor.Dob = DateOnly.FromDateTime(DOB);
+                    newProfessor.WorksIn = departmentAbbrev;
+                    newProfessor.UId = uID;
+                    db.Add(newProfessor);
+                }
+                db.SaveChanges();
+                return uID;
+            } catch (Exception ex)
             {
-                var newAdministrator = new Administrator();
-                newAdministrator.FName = firstName;
-                newAdministrator.LName = lastName; 
-                newAdministrator.Dob = DateOnly.FromDateTime(DOB);
-                db.Add(newAdministrator);
-                return newAdministrator.UId;
-            } else if (role=="Professor")
-            {
-                var newProfessor = new Professor();
-                newProfessor.FName = firstName;
-                newProfessor.LName = lastName;
-                newProfessor.Dob = DateOnly.FromDateTime(DOB);
-                newProfessor.WorksIn = departmentAbbrev;
-                db.Add(newProfessor);
-                return newProfessor.UId;
+                System.Diagnostics.Debug.WriteLine("add user exception", ex);
+                return "unknown";
             }
-
-            return "unknown";
         }
 
         /*******End code to modify********/

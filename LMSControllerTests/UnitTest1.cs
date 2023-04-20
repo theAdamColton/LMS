@@ -1,3 +1,4 @@
+using LMS.Areas.Identity.Pages.Account;
 using LMS.Controllers;
 using LMS.Models.LMSModels;
 using LMS_CustomIdentity.Controllers;
@@ -6,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using System;
+using System.Security.Cryptography;
 
 namespace LMSControllerTests
 {
@@ -13,6 +15,14 @@ namespace LMSControllerTests
     {
         // Uncomment the methods below after scaffolding
         // (they won't compile until then)
+        [Fact]
+        public void TestAddDepartment()
+        {
+            var department = new Department();
+            var context = MakeTinyDB();
+            AdministratorController administratorController = new AdministratorController(context);
+            administratorController.CreateDepartment("Quidditch", "QUID");
+        }
 
         [Fact]
         public void Test1()
