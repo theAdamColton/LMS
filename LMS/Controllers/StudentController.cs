@@ -159,6 +159,8 @@ namespace LMS.Controllers
         public IActionResult SubmitAssignmentText(string subject, int num, string season, int year,
           string category, string asgname, string uid, string contents)
         {
+            //First find the assignment ID that corresponds to the given input; if nothing is found
+            //return null
             uint? assID = (
                 from course in db.Courses 
                 join classes in db.Classes
@@ -176,15 +178,34 @@ namespace LMS.Controllers
                 select ass.AssignmentId
                 
                 ).SingleOrDefault();
-            if( assID == null ) 
+            //if nothing is found return that it was not successful
+            if( assID == null ) return Json(new { success = false });
+            //if there's already a submission for a student for a certain assignment, update the
+            //submission content and time
+            if (db.Submissions.Any(u => u.Student == uid && u.Assignment == assID))
             {
-                return Json(new { success = false });
+                List<Submission> update = (
+                    from sub in db.Submissions
+                    where sub.Student == uid && sub.Assignment == assID
+                    select sub).ToList();
+                foreach(Submission sub in update )
+                {
+                    sub.SubmissionContents = contents;
+                    sub.Time = DateTime.Now;
+                }
+                db.SaveChanges();
+                return Json(new { success = true });
             }
-            
-            
+            //otherwise add it into submissions
             Submission submission = new Submission();
             submission.Assignment = assID.Value;
-            return Json(new { success = false });
+            submission.Student = uid;
+            submission.Score = 0;
+            submission.SubmissionContents = contents;
+            submission.Time = DateTime.Now;
+            db.Submissions.Add( submission );
+            db.SaveChanges();
+            return Json(new { success = true });
         }
 
 
@@ -199,8 +220,31 @@ namespace LMS.Controllers
         /// <returns>A JSON object containing {success = {true/false}. 
         /// false if the student is already enrolled in the class, true otherwise.</returns>
         public IActionResult Enroll(string subject, int num, string season, int year, string uid)
-        {          
-            return Json(new { success = false});
+        {
+            //Get classID that matches the subject, class number,
+            //season, and year
+            uint? classID = (
+                from course in db.Courses
+                join classes in db.Classes
+                on course.CatalogId equals classes.Listing
+                where course.Department == subject
+                && course.Number == num
+                && classes.Season == season
+                && classes.Year == year
+                select classes.ClassId
+                ).SingleOrDefault();
+            //if no such class exists, or student is already enrolled in said class,
+            //return false
+            if (classID == null) return Json(new { success = false });
+            if(db.Enrolleds.Any(a => a.Student == uid && a.Class == classID)) return Json(new { success = false });
+            //otherwise enroll student in class
+            Enrolled enroll = new Enrolled();
+            enroll.Student = uid;
+            enroll.Class = classID.Value;
+            enroll.Grade = "A";
+            db.Enrolleds.Add( enroll );
+            db.SaveChanges();
+            return Json(new { success = true});
         }
 
 

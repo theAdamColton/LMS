@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.Versioning;
 using System.Text.Json;
 using System.Threading.Tasks;
 using LMS.Models.LMSModels;
@@ -117,22 +118,37 @@ namespace LMS_CustomIdentity.Controllers
         /// <returns>The JSON array</returns>
         public IActionResult GetStudentsInClass(string subject, int num, string season, int year)
         {
-            var thisClass = db.Classes.Where(c => c.ListingNavigation.Department == subject && c.ListingNavigation.Number == num && c.Season == season && c.Year == year).SingleOrDefault();
-            if (thisClass == null)
-                return Json(null);
+            var query = (
+                from course in db.Courses
+                join classes in db.Classes
+                on course.CatalogId equals classes.Listing
+                into classTable
+                where course.Department == subject
+                && course.Number == num
 
-            var result = thisClass.Enrolleds.Select(e => {
-                var student = e.StudentNavigation;
-                return new
+                from cl in classTable.DefaultIfEmpty()
+                join enrolled in db.Enrolleds
+                on cl.ClassId equals enrolled.Class
+                into enrolledTable
+                where cl.Season == season
+                && cl.Year == year
+
+                from enrolled in enrolledTable.DefaultIfEmpty()
+                join students in db.Students
+                on enrolled.Student equals students.UId
+                into studentsTable
+
+                from student in studentsTable.DefaultIfEmpty()
+                select new
                 {
                     fname = student.FName,
                     lname = student.LName,
                     uid = student.UId,
                     dob = student.Dob,
-                    grade = e.Grade,
-                };
-            }).ToArray();
-            return Json(result);
+                    grade = enrolled.Grade
+
+                }) ;
+            return Json(query.ToArray());
         }
 
 
@@ -155,34 +171,39 @@ namespace LMS_CustomIdentity.Controllers
         /// <returns>The JSON array</returns>
         public IActionResult GetAssignmentsInCategory(string subject, int num, string season, int year, string category)
         {
-            // Contains the class (if any) satisfying:
-            //  subject of department matches
-            //  number of course matches
-            //  season and year matches
-            var thisClass = db.Classes.Where(_class => 
-                _class.Season == season &&
-                _class.Year == year &&
-                _class.ListingNavigation.Department== subject &&
-                _class.ListingNavigation.CatalogId == num
-            ).SingleOrDefault();
-            if (thisClass == null)
-            {
-                return Json(null);  
-            }
+            
+            var query = (
+                from course in db.Courses
+                join classes in db.Classes
+                on course.CatalogId equals classes.Listing
+                into classTable
+                where course.Department == subject
+                && course.Number == num
 
+                from cl in classTable.DefaultIfEmpty()
+                join assCat in db.AssignmentCategories
+                on cl.ClassId equals assCat.InClass
+                into catTable
+                where cl.Season == season
+                && cl.Year == year
+                
+                from cattable in catTable.DefaultIfEmpty()
+                join ass in db.Assignments
+                on cattable.CategoryId equals ass.Category
+                into assTable
 
-            ICollection<Assignment> assignments = null;
-            if (category == null)
-            {
-                var assignmentCategory = thisClass.AssignmentCategories.Where(ac => ac.Name == category).SingleOrDefault();
-                assignments = assignmentCategory.Assignments;
-            }
-            else
-            {
-                assignments = db.Assignments.Where(a => a.CategoryNavigation.InClass == thisClass.ClassId).ToList();
-            }
+                from a in assTable
+                select new
+                {
+                    aname = a.Name,
+                    cname = cattable.Name,
+                    due = a.Due
+                }
+                
 
-            return Json(assignments.Select(a => new {aname = a.Name, cname = a.CategoryNavigation.Name, due = a.Due, submissions = a.Submissions.Count }).ToList());
+                    
+                
+                );
         }
 
 
