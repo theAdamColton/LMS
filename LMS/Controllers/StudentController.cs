@@ -6,6 +6,7 @@ using AspNetCore;
 using LMS.Models.LMSModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 // For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -112,17 +113,28 @@ namespace LMS.Controllers
         public IActionResult GetAssignmentsInClass(string subject, int num, string season, int year, string uid)
         {
             var query = (
-                from en in db.Enrolleds join cl in db.Classes
-                on en.Class equals cl.ClassId 
-                join ac in db.AssignmentCategories 
-                on cl.ClassId equals ac.InClass
-                join ass in db.Assignments
-                on ac.CategoryId equals ass.Category
-                join
-
-
-
-                );
+                from submission in db.Submissions 
+                join assignment in db.Assignments
+                on submission.Assignment equals assignment.AssignmentId
+                join assCat in db.AssignmentCategories
+                on assignment.Category equals assCat.CategoryId
+                join classes in db.Classes 
+                on assCat.InClass equals classes.ClassId
+                join courses in db.Courses
+                on classes.Listing equals courses.CatalogId
+                where uid == submission.Student
+                && subject == courses.Department
+                && num == courses.Number
+                && season == classes.Season
+                && year == classes.Year
+                select new
+                {
+                    aname = assignment.Name,
+                    cname = assCat.Name,
+                    due = assignment.Due,
+                    score = submission.Score,
+                });
+            return Json(query.ToArray());
         }
 
 
@@ -146,7 +158,32 @@ namespace LMS.Controllers
         /// <returns>A JSON object containing {success = true/false}</returns>
         public IActionResult SubmitAssignmentText(string subject, int num, string season, int year,
           string category, string asgname, string uid, string contents)
-        {           
+        {
+            uint? assID = (
+                from course in db.Courses 
+                join classes in db.Classes
+                on course.CatalogId equals classes.Listing
+                join cat in db.AssignmentCategories
+                on classes.ClassId equals cat.InClass
+                join ass in db.Assignments
+                on cat.CategoryId equals ass.Category
+                where subject == course.Department
+                && num == course.Number
+                && season == classes.Season
+                && year == classes.Year
+                && category == cat.Name
+                && asgname == ass.Name
+                select ass.AssignmentId
+                
+                ).SingleOrDefault();
+            if( assID == null ) 
+            {
+                return Json(new { success = false });
+            }
+            
+            
+            Submission submission = new Submission();
+            submission.Assignment = assID.Value;
             return Json(new { success = false });
         }
 
