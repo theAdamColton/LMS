@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using AspNetCore;
 using LMS.Models.LMSModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -74,8 +75,24 @@ namespace LMS.Controllers
         /// <param name="uid">The uid of the student</param>
         /// <returns>The JSON array</returns>
         public IActionResult GetMyClasses(string uid)
-        {           
-            return Json(null);
+        {
+            var query = (
+                from s in db.Enrolleds join cl in db.Classes on
+                s.Class equals cl.ClassId
+                join c in db.Courses on cl.Listing equals c.CatalogId
+                where s.Student == uid
+                select new
+                {
+                    subject = c.Department,
+                    number = c.Number,
+                    name = c.Name,
+                    season = cl.Season,
+                    year = cl.Year,
+                    grade = s.Grade
+                });
+
+            return Json(query.ToArray());
+
         }
 
         /// <summary>
@@ -93,8 +110,19 @@ namespace LMS.Controllers
         /// <param name="uid"></param>
         /// <returns>The JSON array</returns>
         public IActionResult GetAssignmentsInClass(string subject, int num, string season, int year, string uid)
-        {            
-            return Json(null);
+        {
+            var query = (
+                from en in db.Enrolleds join cl in db.Classes
+                on en.Class equals cl.ClassId 
+                join ac in db.AssignmentCategories 
+                on cl.ClassId equals ac.InClass
+                join ass in db.Assignments
+                on ac.CategoryId equals ass.Category
+                join
+
+
+
+                );
         }
 
 
