@@ -324,9 +324,25 @@ namespace LMS_CustomIdentity.Controllers
         /// <param name="uid">The professor's uid</param>
         /// <returns>The JSON array</returns>
         public IActionResult GetMyClasses(string uid)
-        {            
-            var professer = db.Professors.Where(p => p.UId == uid).SingleOrDefault();
-            return Json(professer.Classes.Select(c => new { subject = c.ListingNavigation.Department, number = c.ListingNavigation.Number, name = c.ListingNavigation.Name, season = c.Season, year = c.Year }).ToArray());
+        {
+            var query = (
+                    from classes in db.Classes
+                    join courses in db.Courses
+                    on classes.Listing equals courses.CatalogId
+                    where classes.TaughtBy == uid
+                    select new
+                    {
+                        subject = courses.Department,
+                        number = courses.Number,
+                        name = courses.Name,
+                        season = classes.Season,
+                        year = classes.Year,
+                    }
+                );
+            return Json( query.ToArray());
+
+            //var professer = db.Professors.Where(p => p.UId == uid).SingleOrDefault();
+            //return Json(professer.Classes.Select(c => new { subject = c.ListingNavigation.Department, number = c.ListingNavigation.Number, name = c.ListingNavigation.Name, season = c.Season, year = c.Year }).ToArray());
         }
 
 

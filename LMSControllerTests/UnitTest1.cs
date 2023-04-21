@@ -6,27 +6,71 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+using Newtonsoft.Json;
 using System;
 using System.ComponentModel;
+using System.Drawing.Printing;
+using System.Runtime.Intrinsics.Arm;
 using System.Security.Cryptography;
 
 namespace LMSControllerTests
 {
     public class UnitTest1
     {
+        
         // Uncomment the methods below after scaffolding
         // (they won't compile until then)
         [Fact]
         public void TestAddDepartment()
         {
-            var department = new Department();
-            department.Name = "Quidditch";
-            department.Subject = "QUID";
-            var context = MakeTinyDB();
-            context.Add(department);
+            LMSContext con = MakeTinyDB();
+            AdministratorController c = new AdministratorController(con);
+            var quid1 = c.CreateDepartment("Quidditch", "QUID") as JsonResult;
+            var quid2 = c.CreateDepartment("Quidditch", "QUID") as JsonResult;
+            var trans1 = c.CreateDepartment("Tranfiguration", "TRAN") as JsonResult;
+            var empty = c.CreateDepartment("", "") as JsonResult;
+            var quidQuery = (
+                from dep in con.Departments
+                where dep.Name == "QUID"
+                select new
+                {
+                    subject = dep.Subject,
+                    name = dep.Name
+                }
+                );
+            Assert.Equal(1, quidQuery.Count());
+            Assert.Equal("Quidditch", quidQuery.First().subject);
+            Assert.Equal(1, quidQuery.Count());
+            Assert.Equal("QUID", quidQuery.First().name);
+            if (quid2 != null && quid2.Value != null)
+            {
+                String? x = quid2.Value.ToString();
+                if (x != null) { Assert.Equal("{ success = False }", x); }
+            }
+            if(quid1 != null && quid1.Value != null)
+            {
+                string? x = quid1.Value.ToString();
+                if (x != null) { Assert.Equal("{ success = True }", x); }
+            }
+            if (empty != null && empty.Value != null)
+            {
+                string? x = empty.Value.ToString();
+                if (x != null) { Assert.Equal("{ success = False }", x); }
+            }
+
+
             // AdministratorController administratorController = new AdministratorController(context);
             // var result = administratorController.CreateDepartment("Quidditch", "QUID");
             // Assert.True(result["success"]);
+
+        }
+
+        [Fact]
+        public void TestCreateCourse()
+        {
+            AdministratorController c = new AdministratorController(MakeTinyDB());
+            var quid1 = c.CreateCourse
 
         }
 
@@ -58,18 +102,18 @@ namespace LMSControllerTests
             .UseApplicationServiceProvider(NewServiceProvider())
             .Options;
 
-            var db = new LMSContext(contextOptions);
+            LMSContext testdb = new LMSContext(contextOptions);
 
-            db.Database.EnsureDeleted();
-            db.Database.EnsureCreated();
+            //testdb.Database.EnsureDeleted();
+            //testdb.Database.EnsureCreated();
 
-            db.Departments.Add(new Department { Name = "KSoC", Subject = "CS" });
+            //db.Departments.Add(new Department { Name = "KSoC", Subject = "CS" });
 
             // TODO: add more objects to the test database
 
-            db.SaveChanges();
+            //testdb.SaveChanges();
 
-            return db;
+            return testdb;
         }
 
         private static ServiceProvider NewServiceProvider()

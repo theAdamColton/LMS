@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.Intrinsics.Arm;
 using System.Text.Json;
 using System.Threading.Tasks;
 using LMS.Models.LMSModels;
@@ -18,6 +19,8 @@ namespace LMS.Controllers
         {
             db = _db;
         }
+
+        
 
         // GET: /<controller>/
         public IActionResult Index()
@@ -59,9 +62,9 @@ namespace LMS.Controllers
             } catch (Exception ex)
             {
                 System.Diagnostics.Debug.WriteLine(ex.Message); 
-                return Json(new { success = false});
+                return Json(new {success = false});
             }
-            return Json(new { success = true});
+            return Json(new {success = true});
         }
 
 
@@ -75,13 +78,22 @@ namespace LMS.Controllers
         /// <returns>The JSON result</returns>
         public IActionResult GetCourses(string subject)
         {
-            var courses = db.Courses.Where(d => d.DepartmentNavigation.Subject == subject);
-            if (courses.Count() == 0)
-            {
-                return Json(Enumerable.Empty<Object>());
-            }
-            var resultList = courses.Select(c => new {number= c.Number, name= c.Name}).ToList();
-            return Json(resultList);
+            var query = (
+                from course in db.Courses
+                where course.Department == subject
+                select new
+                {
+                    number = course.Number,
+                    name = course.Name
+                }
+                );
+            //var courses = db.Courses.Where(d => d.DepartmentNavigation.Subject == subject);
+            //if (courses.Count() == 0)
+            //{
+            //    return Json(Enumerable.Empty<Object>());
+            //}
+            //var resultList = courses.Select(c => new {number= c.Number, name= c.Name}).ToList();
+            return Json(query.ToArray());
         }
 
         /// <summary>
@@ -120,7 +132,8 @@ namespace LMS.Controllers
                 newCourse.Department = subject;
                 newCourse.Number = (uint)number;
                 newCourse.Name = name;
-                db.Add(newCourse); db.SaveChanges();
+                db.Add(newCourse); 
+                db.SaveChanges();
                 return Json(new { success = true });
             } catch (Exception ex) { 
                 System.Diagnostics.Debug.WriteLine("Create course error",ex.Message); 
