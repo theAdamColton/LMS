@@ -237,6 +237,7 @@ namespace LMS_CustomIdentity.Controllers
 
         /// <summary>
         /// Creates a new assignment for the given class and category.
+        /// TODO Update students grades in Enrolled. By default, on a new assignment all students have zeros
         /// </summary>
         /// <param name="subject">The course subject abbreviation</param>
         /// <param name="num">The course number</param>
@@ -290,6 +291,7 @@ namespace LMS_CustomIdentity.Controllers
 
         /// <summary>
         /// Set the score of an assignment submission
+        /// TODO Update student grade in Enrolled!
         /// </summary>
         /// <param name="subject">The course subject abbreviation</param>
         /// <param name="num">The course number</param>

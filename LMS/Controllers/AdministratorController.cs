@@ -210,6 +210,7 @@ namespace LMS.Controllers
             //).Any();
             if (anySameSemesterAndLocationClasses)
             {
+                System.Diagnostics.Debug.WriteLine("COlliding class exists!!!!  CANT CREATE CLASS"); 
                 return Json(new { success = false});
             }
 
@@ -222,6 +223,7 @@ namespace LMS.Controllers
             //course.Classes.Where(c => c.Season == season && c.Year == year).Any();
             if (anyClassOfferingOfSameCourseSameSemester)
             {
+                System.Diagnostics.Debug.WriteLine("THIS COURSE IS ALREADY OFFERED THIS SAME SEASON AND YEAR!!!");
                 return Json(new { success = false});
             }
 
@@ -234,6 +236,7 @@ namespace LMS.Controllers
             newClass.TaughtBy = instructor;
             newClass.ListingNavigation = course;
             db.Add(newClass);
+            db.SaveChanges();
             return Json(new { success = true});
         }
 
