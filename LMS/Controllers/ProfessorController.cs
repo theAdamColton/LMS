@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Collections;
 using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -100,6 +101,98 @@ namespace LMS_CustomIdentity.Controllers
 
         /*******Begin code to modify********/
 
+        /// <summary>
+        /// Updates the grade of this student, in this class
+        /// </summary>
+        /// <param name="student"></param>
+        /// <param name="thisClass"></param>
+        void UpdateGrade(Student student, Class thisClass)
+        {
+            var enr = thisClass.Enrolleds.Where(enr => enr.Student == student.UId).Single();
+
+            double allTotalUnscaled = thisClass.AssignmentCategories.Select(
+                // assignment category weight * (sum)
+                ac => {
+                    // First calculates the percentage of (total points earned / total max
+                    // points) of all assignments in the category. This should be a
+                    // number between 0.0 - 1.0. For example, if there are 875 possible
+                    // points spread among various assignments in the category, and the
+                    // student earned a total of 800 among all assignments in that
+                    // category, this value should be ~0.914
+
+                    // Total of all earned points across all assignments in this ac AssignmentCategory
+                    int earnedPoints = ac.Assignments.Select(ass =>
+                        {
+                            var sub = ass.Submissions.Where(sub => sub.Student == student.UId).SingleOrDefault();
+                            return sub == null ? 0: (int)sub.Score;
+                        }
+                    ).Sum();
+                    // Total points across all assignments
+                    int totalPoints = ac.Assignments.Select(ass => (int)ass.MaxPoints).Sum();
+
+                    // Avoids dividing by zero. If the total points is zero, then the score is 1.0 / 1.0
+                    double score = totalPoints == 0? 1.0 :  (double)earnedPoints / (double)totalPoints;
+
+                    // Multiplies the percentage by the category weight. For
+                    // example, if the category weight is 15, then the scaled
+                    // total for the category is ~13.71 (using the previous
+                    // example).
+                    double scaledScore = score * (double)ac.Weight;
+                    return scaledScore;
+                }
+            ).Sum();
+            // IMPORTANT - there is no rule that assignment
+            // category weights must sum to 100. Therefore, we have to re-scale
+            var totalWeights = thisClass.AssignmentCategories.Select(ac => (int)ac.Weight).Sum();
+            // Avoids dividing by zero; in the case that all assignment weights
+            // are zero, the total scaled score is 100.0 / 100.0
+            double allTotalScaled = totalWeights == 0 ? 100.0 : (double)allTotalUnscaled * (100 / (double)totalWeights);
+
+            // Letter 	Scoring
+            //A <= 100 % -93 %
+            //A -  < 93 % -90 %
+            //B +  < 90 %–87 %
+            //B < 87 %–83 %
+            //B -  < 83 % -80 %
+            //C +  < 80 %–77 %
+            //C < 77 %–73 %
+            //C -  < 73 % -70 %
+            //D +  < 70 %–67 %
+            //D < 67 %–63 %
+            //D -  < 63 % -60 %
+            //E < 60 %
+
+            string grade = null;
+            if (allTotalScaled >= 93)
+                grade = "A";
+            else if (allTotalScaled >= 90)
+                grade = "A-";
+            else if (allTotalScaled >= 87)
+                grade = "B+";
+            else if (allTotalScaled >= 83)
+                grade = "B";
+            else if (allTotalScaled >= 80)
+                grade = "B-";
+            else if (allTotalScaled >= 77)
+                grade = "C+";
+            else if (allTotalScaled >= 73)
+                grade = "C";
+            else if (allTotalScaled >= 70)
+                grade = "C-";
+            else if (allTotalScaled >= 67)
+                grade = "D+";
+            else if (allTotalScaled >= 63)
+                grade = "D";
+            else if (allTotalScaled >= 60)
+                grade = "D-";
+            else
+                grade = "E";
+
+            enr.Grade = grade;
+            db.Update(enr);
+            db.SaveChanges();
+        }
+
 
         /// <summary>
         /// Returns a JSON array of all the students in a class.
@@ -159,27 +252,17 @@ namespace LMS_CustomIdentity.Controllers
             //  subject of department matches
             //  number of course matches
             //  season and year matches
-            var thisClass = db.Classes.Where(_class => 
-                _class.Season == season &&
-                _class.Year == year &&
-                _class.ListingNavigation.Department== subject &&
-                _class.ListingNavigation.CatalogId == num
-            ).SingleOrDefault();
-            if (thisClass == null)
-            {
-                return Json(null);  
-            }
-
+            var thisCourse = db.Courses.Where(c => c.Number == num && c.Department == subject).Single();
+            var thisClass = thisCourse.Classes.Where(c => c.Season == season && c.Year == year).Single();
 
             ICollection<Assignment> assignments = null;
             if (category == null)
             {
-                var assignmentCategory = thisClass.AssignmentCategories.Where(ac => ac.Name == category).SingleOrDefault();
-                assignments = assignmentCategory.Assignments;
+                assignments = db.Assignments.Where(ass => ass.CategoryNavigation.InClass == thisClass.ClassId).ToList();
             }
             else
             {
-                assignments = db.Assignments.Where(a => a.CategoryNavigation.InClass == thisClass.ClassId).ToList();
+                assignments = db.Assignments.Where(ass => ass.CategoryNavigation.Name == category && ass.CategoryNavigation.InClass == thisClass.ClassId).ToList();
             }
 
             return Json(assignments.Select(a => new {aname = a.Name, cname = a.CategoryNavigation.Name, due = a.Due, submissions = a.Submissions.Count }).ToList());
@@ -222,22 +305,26 @@ namespace LMS_CustomIdentity.Controllers
         /// <returns>A JSON object containing {success = true/false} </returns>
         public IActionResult CreateAssignmentCategory(string subject, int num, string season, int year, string category, int catweight)
         {
-            var thisClass = db.Classes.Where(c => c.ListingNavigation.Department == subject && c.ListingNavigation.Number == num && c.Season == season && c.Year == year).SingleOrDefault();
-            var isAssignmentCategory = thisClass.AssignmentCategories.Where(cat => cat.Name == category).Any();
-            if (isAssignmentCategory) { 
+            Class thisClass = db.Classes.Where(c => c.ListingNavigation.Department == subject && c.ListingNavigation.Number == num && c.Season == season && c.Year == year).SingleOrDefault();
+            if (thisClass == null)
                 return Json(new { success = false });
-            }
-            var assignmentCategory = new AssignmentCategory();
+
+            bool isAssignmentCategory = thisClass.AssignmentCategories.Where(cat => cat.Name == category).Any();
+            if (isAssignmentCategory)
+                return Json(new { success = false });
+
+            AssignmentCategory assignmentCategory = new AssignmentCategory();
             assignmentCategory.Name = category;
             assignmentCategory.Weight = (uint)catweight;
             assignmentCategory.InClassNavigation = thisClass;
             db.Add(assignmentCategory);
+            db.SaveChanges();
             return Json(new { success = true });
         }
 
         /// <summary>
         /// Creates a new assignment for the given class and category.
-        /// TODO Update students grades in Enrolled. By default, on a new assignment all students have zeros
+        /// Updates students grades in Enrolled. By default, on a new assignment all students have zeros
         /// </summary>
         /// <param name="subject">The course subject abbreviation</param>
         /// <param name="num">The course number</param>
@@ -252,7 +339,13 @@ namespace LMS_CustomIdentity.Controllers
         public IActionResult CreateAssignment(string subject, int num, string season, int year, string category, string asgname, int asgpoints, DateTime asgdue, string asgcontents)
         {
             var thisClass = db.Classes.Where(c => c.ListingNavigation.Department == subject && c.ListingNavigation.Number == num && c.Season == season && c.Year == year).SingleOrDefault();
+            if (thisClass == null)
+                return Json(new { success = false });
+
             var assignmentCategory = thisClass.AssignmentCategories.Where(ac => ac.Name == category).SingleOrDefault();
+            if (assignmentCategory == null)
+                return Json(new { success = false });
+
             var assignment = new Assignment();
             assignment.Name = asgname;
             assignment.MaxPoints = (uint)asgpoints;
@@ -260,6 +353,13 @@ namespace LMS_CustomIdentity.Controllers
             assignment.Contents = asgcontents;
             assignment.CategoryNavigation = assignmentCategory;
             db.Add(assignment);
+            db.SaveChanges();
+
+            // updates the grades of all students in this class
+            foreach (Student student in thisClass.Enrolleds.Select(enr => enr.StudentNavigation)) {
+                UpdateGrade(student, thisClass);
+            }
+
             return Json(new { success = true });
         }
 
@@ -291,7 +391,7 @@ namespace LMS_CustomIdentity.Controllers
 
         /// <summary>
         /// Set the score of an assignment submission
-        /// TODO Update student grade in Enrolled!
+        /// Updates the student's grade
         /// </summary>
         /// <param name="subject">The course subject abbreviation</param>
         /// <param name="num">The course number</param>
@@ -305,11 +405,20 @@ namespace LMS_CustomIdentity.Controllers
         public IActionResult GradeSubmission(string subject, int num, string season, int year, string category, string asgname, string uid, int score)
         {
             var thisClass = db.Classes.Where(c => c.ListingNavigation.Department == subject && c.ListingNavigation.Number == num && c.Season == season && c.Year == year).SingleOrDefault();
+            var student = db.Students.Where(s => s.UId == uid).SingleOrDefault();
             var assignment = db.Assignments.Where(ass => ass.Name == asgname && ass.CategoryNavigation.Name == category && ass.CategoryNavigation.InClass == thisClass.ClassId).SingleOrDefault();
             var submission = assignment.Submissions.Where(sub => sub.Student == uid).SingleOrDefault();
+
+            if (thisClass == null || student == null || assignment == null || submission == null)
+                return Json(new { success = false });
+
             submission.Score = (uint)score;
             db.Update(submission);
             db.SaveChanges();
+
+            // updates grade
+            UpdateGrade(student, thisClass);
+
             return Json(new { success = true });
         }
 
@@ -342,9 +451,6 @@ namespace LMS_CustomIdentity.Controllers
                     }
                 );
             return Json( query.ToArray());
-
-            //var professer = db.Professors.Where(p => p.UId == uid).SingleOrDefault();
-            //return Json(professer.Classes.Select(c => new { subject = c.ListingNavigation.Department, number = c.ListingNavigation.Number, name = c.ListingNavigation.Name, season = c.Season, year = c.Year }).ToArray());
         }
 
 

@@ -193,7 +193,7 @@ namespace LMS.Controllers
                     submission.SubmissionContents = contents;
                     submission.Score = 0;
                     submission.Time = DateTime.Now;
-                    db.Submissions.Add(submission);
+                    db.Add(submission);
                     db.SaveChanges();
                 }
                 else
@@ -227,17 +227,20 @@ namespace LMS.Controllers
         /// false if the student is already enrolled in the class, true otherwise.</returns>
         public IActionResult Enroll(string subject, int num, string season, int year, string uid)
         {
-            try
+            var thisClass = db.Classes.Where(c => c.Season == season && c.Year == year && c.ListingNavigation.Number == num && c.ListingNavigation.DepartmentNavigation.Subject == subject).FirstOrDefault();
+            var student = db.Students.Where(s => s.UId == uid).FirstOrDefault();    
+            if (thisClass == null || student == null)
             {
-
+                return Json(new { success = false});
             }
-            catch(Exception ex)
-            {
-                return Json(new { success = false });
-            }
+            var enrollment = new Enrolled();
+            enrollment.Student = student.UId;
+            enrollment.Class = thisClass.ClassId;
+            enrollment.Grade = "--";
+            db.Add(enrollment);
+            db.SaveChanges();
             return Json(new { success = true});
         }
-
 
 
         /// <summary>
@@ -253,9 +256,9 @@ namespace LMS.Controllers
         /// <returns>A JSON object containing a single field called "gpa" with the number value</returns>
         public IActionResult GetGPA(string uid)
         {
-            var student = db.Students.Where(s => s.UId == uid).FirstOrDefault();
+            var student = db.Students.Where(s => s.UId == uid).Single();
             var grades = student.Enrolleds.Select(e => e.Grade).ToArray();
-            var grade_points = grades.Select(g => {
+            double total_grade_points = grades.Select(g => {
                 if (g == "A")
                     return 4.0;
                 if (g == "A-")
@@ -281,16 +284,13 @@ namespace LMS.Controllers
                 if (g == "--")
                     return 0.0;
                 return -100000000000.0;
-            });
-            double gpa = 0.0;
+            }).Sum();
 
+            // number of classes where the student has some grade that is not '--'
             var num_gps_to_count = grades.Where(g => g != "--").Count();
+            double gpa = num_gps_to_count == 0? 0.0 : total_grade_points / num_gps_to_count;
 
-            if (num_gps_to_count > 0)
-            {
-                gpa = grade_points.Sum() / num_gps_to_count;
-            }
-            return Json(gpa);
+            return Json(new { gpa = gpa });
         }
                 
         /*******End code to modify********/
