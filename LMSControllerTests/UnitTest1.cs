@@ -26,44 +26,25 @@ namespace LMSControllerTests
         {
             LMSContext con = MakeTinyDB();
             AdministratorController c = new AdministratorController(con);
-            var quid1 = c.CreateDepartment("Quidditch", "QUID") as JsonResult;
-            var quid2 = c.CreateDepartment("Quidditch", "QUID") as JsonResult;
-            var trans1 = c.CreateDepartment("Tranfiguration", "TRAN") as JsonResult;
+            var Botany = c.CreateDepartment( "BOT", "Botany") as JsonResult;
+            var quid2 = c.CreateDepartment( "QUID", "Quidditch") as JsonResult;
+            var trans1 = c.CreateDepartment("TRAN", "Tranfiguration") as JsonResult;
             var empty = c.CreateDepartment("", "") as JsonResult;
-            var quidQuery = (
+            var query = (
                 from dep in con.Departments
-                where dep.Name == "QUID"
-                select new
-                {
-                    subject = dep.Subject,
-                    name = dep.Name
-                }
+                select dep
                 );
-            Assert.Equal(1, quidQuery.Count());
-            Assert.Equal("Quidditch", quidQuery.First().subject);
-            Assert.Equal(1, quidQuery.Count());
-            Assert.Equal("QUID", quidQuery.First().name);
-            if (quid2 != null && quid2.Value != null)
-            {
-                String? x = quid2.Value.ToString();
-                if (x != null) { Assert.Equal("{ success = False }", x); }
-            }
-            if(quid1 != null && quid1.Value != null)
-            {
-                string? x = quid1.Value.ToString();
-                if (x != null) { Assert.Equal("{ success = True }", x); }
-            }
-            if (empty != null && empty.Value != null)
-            {
-                string? x = empty.Value.ToString();
-                if (x != null) { Assert.Equal("{ success = False }", x); }
-            }
-
-
-            // AdministratorController administratorController = new AdministratorController(context);
-            // var result = administratorController.CreateDepartment("Quidditch", "QUID");
-            // Assert.True(result["success"]);
-
+            Assert.Equal(3, query.Count());
+            Assert.Equal("Botany", query.ToArray()[1].Name);
+            Assert.Equal("BOT", query.ToArray()[1].Subject);
+            if (quid2 == null || quid2.Value == null || quid2.Value.ToString() == null) Assert.Fail("should return Json result");
+            Assert.Equal("{ success = False }", quid2.Value.ToString());
+           
+            if (Botany == null || Botany.Value == null || Botany.Value.ToString() == null) Assert.Fail("should return Json result");
+            Assert.Equal("{ success = True }", Botany.Value.ToString()); 
+            
+            if (empty == null || empty.Value == null || empty.ToString() == null) Assert.Fail("should return Json result");
+            Assert.Equal("{ success = False }", empty.Value.ToString()); 
         }
         /// <summary>
         /// First checks if create course works, and then checks if the get courses works too
@@ -73,11 +54,9 @@ namespace LMSControllerTests
         {
             LMSContext con = MakeTinyDB();
             AdministratorController c = new AdministratorController(con);
-            var quid1 = c.CreateCourse("QUID", 1010, "Seeker School I");
-            var errquid1 = c.CreateCourse("QUID", 1010, "Seeker School II");
-            var quid2 = c.CreateCourse("QUID", 1020, "Seeker");
-            var trans1 = c.CreateCourse("TRAN", 1010, "Intro to Transfiguration");
-            var trans2 = c.CreateCourse("TRAN", 2010, "Transfiguration");
+            JsonResult? errquid1 = c.CreateCourse("QUID", 1010, "Quidditch I") as JsonResult;
+            JsonResult? quid2 = c.CreateCourse("QUID", 1020, "Quidditch II") as JsonResult;
+            JsonResult? trans1 = c.CreateCourse("TRAN", 1010, "Intro to Transfiguration") as JsonResult;
 
             var qquery = (
                 from course in con.Courses
@@ -90,9 +69,48 @@ namespace LMSControllerTests
                 });
             //ensures that a repeated insert doesn't work
             Assert.Equal(2, qquery.Count());
-            Assert.Equal("QUID", qquery.First().dept);
-            Assert.Equal((uint) 1010, qquery.First().number);
-            Assert.Equal()
+            Assert.Equal("QUID", qquery.ToArray()[1].dept);
+            Assert.Equal((uint) 1020, qquery.ToArray()[1].number);
+            Assert.Equal("Quidditch II", qquery.ToArray()[1].name);
+
+            if (errquid1 == null || errquid1.Value == null || errquid1.Value.ToString() == null) Assert.Fail("errquid should not be null");
+            String? errquidString = errquid1.Value.ToString();
+            Assert.Equal("{ success = False }", errquidString);
+
+            if(trans1 == null || trans1.Value == null || trans1.Value.ToString() == null) Assert.Fail("errquid should not be null");
+            String? trans1String = trans1.Value.ToString();
+            Assert.Equal("{ success = True }", trans1String); 
+            
+            c.CreateDepartment("TRAN", "Transfiguration");
+            trans1 = c.CreateCourse("TRAN", 1010, "Intro to Transfiguration") as JsonResult;
+            if (trans1 == null || trans1.Value == null || trans1.Value.ToString() == null) Assert.Fail("should not be null");
+            trans1String = trans1.Value.ToString();
+            Assert.Equal("{ success = False }", trans1String); 
+            
+            JsonResult? courses = c.GetCourses("QUID") as JsonResult;
+            if (courses == null || courses.Value == null) Assert.Fail("Courses should not be null");
+            dynamic x = courses.Value;
+            Assert.Equal(2, x.Length);
+            Assert.Equal(1010, x[0]{ "number"});
+            Assert.Equal("Quidditch I", x[0].name);
+
+            Assert.Equal(1020, x[1].number);
+            Assert.Equal("Quidditch II", x[1].name);
+            
+        }
+
+        [Fact]
+        public void TestCreateClass()
+        {
+            LMSContext con = MakeTinyDB();
+            AdministratorController c = new AdministratorController(con);
+            var quidI2020 = c.CreateClass("QUID", 1010, "Fall", 2020, new DateTime(2019, 8, 1), new DateTime(2020, 1, 10), "Field", "Potter");
+            var errquidI2020 = c.CreateClass("QUID", 1010, "Fall", 2020, new DateTime(3000, 8, 1), new DateTime(3002, 1, 10), "OtherField", "notPotter");
+            var errquid2 = c.CreateClass("SPOR", 1010, "Fall", 2020, new DateTime(2020, 1, 1), new DateTime(2021, 10, 10), "Field", "notPotter");
+            var classQuery = (from classes in con.Classes
+                              select classes);
+            Assert.Equal(1, classQuery.Count());
+            Assert.Equal("Potter", classQuery.First().TaughtBy);
         }
 
         [Fact]
@@ -120,12 +138,22 @@ namespace LMSControllerTests
         {
             var contextOptions = new DbContextOptionsBuilder<LMSContext>()
             .UseInMemoryDatabase("LMSControllerTest")
-            .ConfigureWarnings(b => b.Ignore(InMemoryEventId.TransactionIgnoredWarning))
             .UseApplicationServiceProvider(NewServiceProvider())
             .Options;
 
             LMSContext testdb = new LMSContext(contextOptions);
+            Department dep = new Department();
+            dep.Name = "Quidditch";
+            dep.Subject = "QUID";
+            testdb.Departments.Add(dep);
+            Course quid1 = new Course();
 
+            quid1.Department = "QUID";
+            quid1.Number = 1010;
+            quid1.Name = "Quidditch 1";
+            testdb.Courses.Add(quid1);
+
+            testdb.SaveChanges();
             //testdb.Database.EnsureDeleted();
             //testdb.Database.EnsureCreated();
 

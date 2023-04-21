@@ -158,31 +158,59 @@ namespace LMS.Controllers
         public IActionResult SubmitAssignmentText(string subject, int num, string season, int year,
           string category, string asgname, string uid, string contents)
         {
-            uint? assID = (
+            try 
+            { 
+                uint? assID = (
                 from course in db.Courses 
                 join classes in db.Classes
                 on course.CatalogId equals classes.Listing
-                join cat in db.AssignmentCategories
-                on classes.ClassId equals cat.InClass
-                join ass in db.Assignments
-                on cat.CategoryId equals ass.Category
                 where subject == course.Department
                 && num == course.Number
-                && season == classes.Season
+
+                join cat in db.AssignmentCategories
+                on classes.ClassId equals cat.InClass
+                where season == classes.Season
                 && year == classes.Year
-                && category == cat.Name
+
+                join ass in db.Assignments
+                on cat.CategoryId equals ass.Category
+                where category == cat.Name
                 && asgname == ass.Name
-                select ass.AssignmentId
+                select ass.AssignmentId).SingleOrDefault();
+
+                var submissionQuery = (
+                    from sub in db.Submissions
+                    where sub.Assignment == assID
+                    && sub.Student == uid
+                    select sub
+                );
                 
-                ).SingleOrDefault();
-            if( assID == null ) 
+                if(submissionQuery.FirstOrDefault() == null)
+                {
+                    Submission submission = new Submission();
+                    submission.Assignment = assID.Value;
+                    submission.Student = uid;
+                    submission.SubmissionContents = contents;
+                    submission.Score = 0;
+                    submission.Time = DateTime.Now;
+                    db.Submissions.Add(submission);
+                    db.SaveChanges();
+                }
+                else
+                {
+                    submissionQuery.ToList().ForEach(submission =>
+                    {
+                        submission.SubmissionContents = contents;
+                        submission.Time = DateTime.Now;
+                    });
+                }
+            }
+            catch (Exception ex)
             {
+                System.Diagnostics.Debug.WriteLine(ex.Message);
                 return Json(new { success = false });
             }
-            
-            
-            Submission submission = new Submission();
-            submission.Assignment = assID.Value;
+
             return Json(new { success = false });
         }
 
@@ -198,8 +226,16 @@ namespace LMS.Controllers
         /// <returns>A JSON object containing {success = {true/false}. 
         /// false if the student is already enrolled in the class, true otherwise.</returns>
         public IActionResult Enroll(string subject, int num, string season, int year, string uid)
-        {          
-            return Json(new { success = false});
+        {
+            try
+            {
+
+            }
+            catch(Exception ex)
+            {
+                return Json(new { success = false });
+            }
+            return Json(new { success = true});
         }
 
 
