@@ -65,20 +65,42 @@ namespace LMSControllerTests
             // Assert.True(result["success"]);
 
         }
-
+        /// <summary>
+        /// First checks if create course works, and then checks if the get courses works too
+        /// </summary>
         [Fact]
-        public void TestCreateCourse()
+        public void TestCreateAndGetCourse()
         {
-            AdministratorController c = new AdministratorController(MakeTinyDB());
-            var quid1 = c.CreateCourse
+            LMSContext con = MakeTinyDB();
+            AdministratorController c = new AdministratorController(con);
+            var quid1 = c.CreateCourse("QUID", 1010, "Seeker School I");
+            var errquid1 = c.CreateCourse("QUID", 1010, "Seeker School II");
+            var quid2 = c.CreateCourse("QUID", 1020, "Seeker");
+            var trans1 = c.CreateCourse("TRAN", 1010, "Intro to Transfiguration");
+            var trans2 = c.CreateCourse("TRAN", 2010, "Transfiguration");
 
+            var qquery = (
+                from course in con.Courses
+                where course.Department == "QUID"
+                select new
+                {
+                    dept = course.Department,
+                    number = course.Number,
+                    name = course.Name,
+                });
+            //ensures that a repeated insert doesn't work
+            Assert.Equal(2, qquery.Count());
+            Assert.Equal("QUID", qquery.First().dept);
+            Assert.Equal((uint) 1010, qquery.First().number);
+            Assert.Equal()
         }
 
         [Fact]
         public void Test1()
         {
+            LMSContext con = MakeTinyDB();
             // An example of a simple unit test on the CommonController
-            CommonController ctrl = new CommonController(MakeTinyDB());
+            CommonController ctrl = new CommonController(con);
 
             var allDepts = ctrl.GetDepartments() as JsonResult;
 
