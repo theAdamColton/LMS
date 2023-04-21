@@ -62,9 +62,11 @@ namespace LMS.Controllers
                 department.Subject = subject;
                 db.Departments.Add(department);
                 db.SaveChanges();
-            } catch (Exception ex)
+            } 
+            catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine(ex.Message); 
+                System.Diagnostics.Debug.WriteLine(ex.Message);
+                db.SaveChanges();
                 return Json(new {success = false});
             }
             return Json(new {success = true});
