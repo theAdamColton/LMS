@@ -111,29 +111,19 @@ namespace LMS.Controllers
         /// <returns>The JSON array</returns>
         public IActionResult GetAssignmentsInClass(string subject, int num, string season, int year, string uid)
         {
-            var query = (
-                from submission in db.Submissions 
-                join assignment in db.Assignments
-                on submission.Assignment equals assignment.AssignmentId
-                join assCat in db.AssignmentCategories
-                on assignment.Category equals assCat.CategoryId
-                join classes in db.Classes 
-                on assCat.InClass equals classes.ClassId
-                join courses in db.Courses
-                on classes.Listing equals courses.CatalogId
-                where uid == submission.Student
-                && subject == courses.Department
-                && num == courses.Number
-                && season == classes.Season
-                && year == classes.Year
-                select new
-                {
-                    aname = assignment.Name,
-                    cname = assCat.Name,
-                    due = assignment.Due,
-                    score = submission.Score,
-                });
-            return Json(query.ToArray());
+            var course = db.Courses.Where(c => c.Department == subject && c.Number == num).Single();
+            var thisClass = course.Classes.Where(c => c.Season == season && c.Year == year).Single();
+            var student = db.Students.Where(s => s.UId == uid).Single();
+
+            var result = db.Assignments.Where(ass => ass.CategoryNavigation.InClass == thisClass.ClassId).ToArray().Select(ass => {
+                    var submission = ass.Submissions.Where(sub => sub.Student == student.UId).SingleOrDefault();
+                    if (submission == null)
+                        return new { aname = ass.Name, cname = ass.CategoryNavigation.Name, due = ass.Due, score = (Nullable<int>)null };
+                    else
+                        return new { aname = ass.Name, cname = ass.CategoryNavigation.Name, due = ass.Due, score = (Nullable<int>)submission.Score};
+                }).ToArray();
+
+            return Json(result);
         }
 
 
