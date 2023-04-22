@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Runtime.Intrinsics.Arm;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -107,18 +108,24 @@ namespace LMS.Controllers
         /// <returns>The JSON result</returns>
         public IActionResult GetProfessors(string subject)
         {
-            var query = (
-                from pro in db.Professors
-                where subject == pro.WorksIn
-                select new
-                {
-                    lname = pro.LName,
-                    fname = pro.FName,
-                    uid = pro.UId
-                });
-            //var professers = db.Professors.Where(p => p.WorksInNavigation.Subject == subject);
-            //var resultList = professers.Select(p => new { lname = p.LName, fname = p.FName, uid = p.UId }).ToList();
-            return Json(query.ToArray());
+            try
+            {
+                var query = (
+                    from pro in db.Professors
+                    where subject == pro.WorksIn
+                    select new
+                    {
+                        lname = pro.LName,
+                        fname = pro.FName,
+                        uid = pro.UId
+                    });
+                return Json(query.ToArray());
+            }
+            catch(Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine(ex.Message);
+                return Json(null);
+            }
             
         }
 
@@ -178,72 +185,73 @@ namespace LMS.Controllers
         /// true otherwise.</returns>
         public IActionResult CreateClass(string subject, int number, string season, int year, DateTime start, DateTime end, string location, string instructor)
         {
-            var course = (
-                from courses in db.Courses
-                where courses.Department == subject
-                select courses).SingleOrDefault();
+            try {
+                var course = (
+                    from courses in db.Courses
+                    where courses.Department == subject
+                    && courses.Number == number
+                    select courses).SingleOrDefault();
 
-            //if department doesn't exists return false
-            if (course == null) return Json(new { success = false });
-            
+                //if department doesn't exists return false
+                if (course == null) return Json(new { success = false });
 
 
-            var startTime = TimeOnly.FromDateTime(start);
-            var endTime = TimeOnly.FromDateTime(end);
 
-            // is true if there exists any classes of any course that are in the
-            // same location during any time in the start-end range of the same
-            // semester
+                var startTime = TimeOnly.FromDateTime(start);
+                var endTime = TimeOnly.FromDateTime(end);
 
-            var anySameSemesterAndLocationClasses = 
-                (
-                from classes in db.Classes
-                where classes.Season == season 
-                && classes.Year == year
-                && ((classes.StartTime <= startTime) && (classes.EndTime <= endTime)) 
-                && classes.Location == location
-                select classes
-                ).Any();
+                // is true if there exists any classes of any course that are in the
+                // same location during any time in the start-end range of the same
+                // semester
 
-            //var anySameSemesterAndLocationClasses = db.Classes.Where(
-            //    c => c.Season == season && 
-            //    c.Year == year && 
-            //    ((c.StartTime <= startTime) && (c.EndTime <= endTime)) &&
-            //    c.Location == location
-            //).Any();
-            if (anySameSemesterAndLocationClasses)
-            {
-                System.Diagnostics.Debug.WriteLine("COlliding class exists!!!!  CANT CREATE CLASS"); 
-                return Json(new { success = false});
+                var anySameSemesterAndLocationClasses =
+                    (
+                    from classes in db.Classes
+                    where classes.Season == season
+                    && classes.Year == year
+                    && !(startTime >= classes.EndTime || endTime <= classes.StartTime)
+                    
+                    && classes.Location == location
+                    select classes
+                    ).Any();
+
+                if (anySameSemesterAndLocationClasses)
+                {
+                    System.Diagnostics.Debug.WriteLine("COlliding class exists!!!!  CANT CREATE CLASS");
+                    return Json(new { success = false });
+                }
+
+                // is true if there exists any offering of course during the same semester and year
+                var anyClassOfferingOfSameCourseSameSemester =
+                    (from classes in course.Classes
+                     where classes.Season == season
+                     && classes.Year == year
+                     select classes).Any();
+                //course.Classes.Where(c => c.Season == season && c.Year == year).Any();
+                if (anyClassOfferingOfSameCourseSameSemester)
+                {
+                    System.Diagnostics.Debug.WriteLine("THIS COURSE IS ALREADY OFFERED THIS SAME SEASON AND YEAR!!!");
+                    return Json(new { success = false });
+                }
+
+                var newClass = new Class();
+                newClass.StartTime = startTime;
+                newClass.EndTime = endTime;
+                newClass.Year = (uint)year;
+                newClass.Season = season;
+                newClass.Location = location;
+                newClass.TaughtBy = instructor;
+                newClass.ListingNavigation = course;
+                db.Add(newClass);
+                db.SaveChanges();
+                return Json(new { success = true });
             }
-
-            // is true if there exists any offering of course during the same semester and year
-            var anyClassOfferingOfSameCourseSameSemester = 
-                (from classes in course.Classes
-                 where classes.Season == season
-                 && classes.Year == year
-                 select classes). Any();
-            //course.Classes.Where(c => c.Season == season && c.Year == year).Any();
-            if (anyClassOfferingOfSameCourseSameSemester)
+            catch(Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine("THIS COURSE IS ALREADY OFFERED THIS SAME SEASON AND YEAR!!!");
-                return Json(new { success = false});
+                System.Diagnostics.Debug.WriteLine(ex.Message);
+                return Json(new { success = false });
             }
-
-            var newClass = new Class();
-            newClass.StartTime = startTime;
-            newClass.EndTime = endTime;
-            newClass.Year = (uint)year;
-            newClass.Season = season;
-            newClass.Location = location;
-            newClass.TaughtBy = instructor;
-            newClass.ListingNavigation = course;
-            db.Add(newClass);
-            db.SaveChanges();
-            return Json(new { success = true});
         }
-
-
         /*******End code to modify********/
 
     }

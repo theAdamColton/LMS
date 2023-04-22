@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using LMS.Models.LMSModels;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 // For more information on enabling MVC for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -210,22 +211,50 @@ namespace LMS_CustomIdentity.Controllers
         /// <returns>The JSON array</returns>
         public IActionResult GetStudentsInClass(string subject, int num, string season, int year)
         {
-            var thisClass = db.Classes.Where(c => c.ListingNavigation.Department == subject && c.ListingNavigation.Number == num && c.Season == season && c.Year == year).SingleOrDefault();
-            if (thisClass == null)
-                return Json(null);
+            try
+            {
+                var query = (
+                    from courses in db.Courses
+                    join
+                    classes in db.Classes
+                    on courses.CatalogId equals classes.Listing
+                    into classesTable
 
-            var result = thisClass.Enrolleds.Select(e => {
-                var student = e.StudentNavigation;
-                return new
-                {
-                    fname = student.FName,
-                    lname = student.LName,
-                    uid = student.UId,
-                    dob = student.Dob,
-                    grade = e.Grade,
-                };
-            }).ToArray();
-            return Json(result);
+                    from classes in classesTable.DefaultIfEmpty()
+                    join enrolled in db.Enrolleds
+                    on classes.ClassId equals enrolled.Class
+                    into enrolledTable
+
+                    from enrolls in enrolledTable.DefaultIfEmpty()
+                    join stud in db.Students
+                    on enrolls.Student equals stud.UId
+                    into studentsTable
+
+                    where
+                    courses.Department == subject
+                    && courses.Number == num
+                    && classes.Season == season
+                    && classes.Year == year
+
+                    from astud in studentsTable
+                    select new
+                    {
+                        fname = astud.FName,
+                        lname = astud.LName,
+                        uid = astud.UId,
+                        dob = astud.Dob,
+                        grade = enrolls.Grade
+
+                    }
+
+                    );
+
+                return Json(query.ToArray());
+            }
+            catch(Exception exp)
+            {
+                return Json(null);
+            }
         }
 
 
@@ -404,22 +433,56 @@ namespace LMS_CustomIdentity.Controllers
         /// <returns>A JSON object containing success = true/false</returns>
         public IActionResult GradeSubmission(string subject, int num, string season, int year, string category, string asgname, string uid, int score)
         {
-            var thisClass = db.Classes.Where(c => c.ListingNavigation.Department == subject && c.ListingNavigation.Number == num && c.Season == season && c.Year == year).SingleOrDefault();
-            var student = db.Students.Where(s => s.UId == uid).SingleOrDefault();
-            var assignment = db.Assignments.Where(ass => ass.Name == asgname && ass.CategoryNavigation.Name == category && ass.CategoryNavigation.InClass == thisClass.ClassId).SingleOrDefault();
-            var submission = assignment.Submissions.Where(sub => sub.Student == uid).SingleOrDefault();
+            try
+            {
+                uint? subid = (
+                from course in db.Courses
+                join classes in db.Classes
+                on course.CatalogId equals classes.Listing
+                into classTable
 
-            if (thisClass == null || student == null || assignment == null || submission == null)
+                from classes in classTable.DefaultIfEmpty()
+                join cat in db.AssignmentCategories
+                on classes.ClassId equals cat.InClass
+                into catTable
+
+                from cat in catTable.DefaultIfEmpty()
+                join ass in db.Assignments
+                on cat.CategoryId equals ass.Category
+                where category == cat.Name
+                && asgname == ass.Name
+                && season == classes.Season
+                && year == classes.Year
+                select ass.AssignmentId).SingleOrDefault();
+
+                var query =
+                    (
+                    from asub in db.Submissions
+                    where asub.Student == uid
+                    && asub.Assignment == subid
+                    select asub
+                    ).SingleOrDefault() ;
+
+
+                var thisClass = db.Classes.Where(c => c.ListingNavigation.Department == subject && c.ListingNavigation.Number == num && c.Season == season && c.Year == year).SingleOrDefault();
+                var student = db.Students.Where(s => s.UId == uid).SingleOrDefault();
+
+                if (thisClass == null || student == null || query == null)
+                    return Json(new { success = false });
+
+                query.Score = (uint)score;
+                db.Update(query);
+                db.SaveChanges();
+
+                // updates grade
+                UpdateGrade(student, thisClass);
+
+                return Json(new { success = true });
+            }
+            catch(Exception exp)
+            {
                 return Json(new { success = false });
-
-            submission.Score = (uint)score;
-            db.Update(submission);
-            db.SaveChanges();
-
-            // updates grade
-            UpdateGrade(student, thisClass);
-
-            return Json(new { success = true });
+            }
         }
 
 
