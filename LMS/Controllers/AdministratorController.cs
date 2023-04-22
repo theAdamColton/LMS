@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Intrinsics.Arm;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using LMS.Models.LMSModels;
 using Microsoft.AspNetCore.Mvc;
@@ -54,10 +55,12 @@ namespace LMS.Controllers
         {
             try
             {
+                if (Regex.IsMatch(subject, @"^\s*$") || Regex.IsMatch(name, @"^\s*$")) return Json(new { success = false });
+               
                 var department = new Department();
                 department.Name = name;
                 department.Subject = subject;
-                db.Add(department);
+                db.Departments.Add(department);
                 db.SaveChanges();
             } catch (Exception ex)
             {
@@ -87,13 +90,7 @@ namespace LMS.Controllers
                     name = course.Name
                 }
                 );
-            //var courses = db.Courses.Where(d => d.DepartmentNavigation.Subject == subject);
-            //if (courses.Count() == 0)
-            //{
-            //    return Json(Enumerable.Empty<Object>());
-            //}
-            //var resultList = courses.Select(c => new {number= c.Number, name= c.Name}).ToList();
-            return Json(query.ToArray());
+           return Json(query.ToArray());
         }
 
         /// <summary>
@@ -107,9 +104,18 @@ namespace LMS.Controllers
         /// <returns>The JSON result</returns>
         public IActionResult GetProfessors(string subject)
         {
-            var professers = db.Professors.Where(p => p.WorksInNavigation.Subject == subject);
-            var resultList = professers.Select(p => new { lname = p.LName, fname = p.FName, uid = p.UId }).ToList();
-            return Json(resultList);
+            var query = (
+                from pro in db.Professors
+                where subject == pro.WorksIn
+                select new
+                {
+                    lname = pro.LName,
+                    fname = pro.FName,
+                    uid = pro.UId
+                });
+            //var professers = db.Professors.Where(p => p.WorksInNavigation.Subject == subject);
+            //var resultList = professers.Select(p => new { lname = p.LName, fname = p.FName, uid = p.UId }).ToList();
+            return Json(query.ToArray());
             
         }
 
@@ -128,11 +134,19 @@ namespace LMS.Controllers
         {
             try
             {
-                Course newCourse = new Course();
+                if((from course in db.Courses
+                    where course.Department == subject
+                    && course.Number == number
+                    select course).FirstOrDefault() != null)
+                {
+                    System.Diagnostics.Debug.WriteLine("duplicate subject and number");
+                    return Json(new { success = false });
+                }
+                var newCourse = new Course();
                 newCourse.Department = subject;
                 newCourse.Number = (uint)number;
                 newCourse.Name = name;
-                db.Add(newCourse); 
+                db.Courses.Add(newCourse); 
                 db.SaveChanges();
                 return Json(new { success = true });
             } catch (Exception ex) { 
@@ -161,11 +175,15 @@ namespace LMS.Controllers
         /// true otherwise.</returns>
         public IActionResult CreateClass(string subject, int number, string season, int year, DateTime start, DateTime end, string location, string instructor)
         {
-            var course = db.Courses.Where(c => c.Number == number && c.Department == subject).SingleOrDefault();
-            if (course == null)
-            {
-                return Json(new { success = false});
-            }
+            var course = (
+                from courses in db.Courses
+                where courses.Department == subject
+                select courses).SingleOrDefault();
+
+            //if department doesn't exists return false
+            if (course == null) return Json(new { success = false });
+            
+
 
             var startTime = TimeOnly.FromDateTime(start);
             var endTime = TimeOnly.FromDateTime(end);
@@ -173,13 +191,23 @@ namespace LMS.Controllers
             // is true if there exists any classes of any course that are in the
             // same location during any time in the start-end range of the same
             // semester
-            var anySameSemesterAndLocationClasses = db.Classes.Where(
-                c => c.Season == season && 
-                c.Year == year && 
-                // if the startTime is in the range [c.StartTime, c.EndTime] or the endTime is in the range [c.StartTime, c.EndTime]
-                ((c.StartTime <= startTime && startTime < c.EndTime) || (c.StartTime <= endTime && endTime <= c.EndTime)) &&
-                c.Location == location
-            ).Any();
+
+            var anySameSemesterAndLocationClasses = 
+                (
+                from classes in db.Classes
+                where classes.Season == season 
+                && classes.Year == year
+                && ((classes.StartTime <= startTime) && (classes.EndTime <= endTime)) 
+                && classes.Location == location
+                select classes
+                ).Any();
+
+            //var anySameSemesterAndLocationClasses = db.Classes.Where(
+            //    c => c.Season == season && 
+            //    c.Year == year && 
+            //    ((c.StartTime <= startTime) && (c.EndTime <= endTime)) &&
+            //    c.Location == location
+            //).Any();
             if (anySameSemesterAndLocationClasses)
             {
                 System.Diagnostics.Debug.WriteLine("COlliding class exists!!!!  CANT CREATE CLASS"); 
@@ -187,7 +215,12 @@ namespace LMS.Controllers
             }
 
             // is true if there exists any offering of course during the same semester and year
-            var anyClassOfferingOfSameCourseSameSemester = course.Classes.Where(c => c.Season == season && c.Year == year).Any();
+            var anyClassOfferingOfSameCourseSameSemester = 
+                (from classes in course.Classes
+                 where classes.Season == season
+                 && classes.Year == year
+                 select classes). Any();
+            //course.Classes.Where(c => c.Season == season && c.Year == year).Any();
             if (anyClassOfferingOfSameCourseSameSemester)
             {
                 System.Diagnostics.Debug.WriteLine("THIS COURSE IS ALREADY OFFERED THIS SAME SEASON AND YEAR!!!");
