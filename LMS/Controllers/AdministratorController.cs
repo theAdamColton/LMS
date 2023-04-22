@@ -176,11 +176,13 @@ namespace LMS.Controllers
             var anySameSemesterAndLocationClasses = db.Classes.Where(
                 c => c.Season == season && 
                 c.Year == year && 
-                ((c.StartTime <= startTime) && (c.EndTime <= endTime)) &&
+                // if the startTime is in the range [c.StartTime, c.EndTime] or the endTime is in the range [c.StartTime, c.EndTime]
+                ((c.StartTime <= startTime && startTime < c.EndTime) || (c.StartTime <= endTime && endTime <= c.EndTime)) &&
                 c.Location == location
             ).Any();
             if (anySameSemesterAndLocationClasses)
             {
+                System.Diagnostics.Debug.WriteLine("COlliding class exists!!!!  CANT CREATE CLASS"); 
                 return Json(new { success = false});
             }
 
@@ -188,6 +190,7 @@ namespace LMS.Controllers
             var anyClassOfferingOfSameCourseSameSemester = course.Classes.Where(c => c.Season == season && c.Year == year).Any();
             if (anyClassOfferingOfSameCourseSameSemester)
             {
+                System.Diagnostics.Debug.WriteLine("THIS COURSE IS ALREADY OFFERED THIS SAME SEASON AND YEAR!!!");
                 return Json(new { success = false});
             }
 
@@ -200,6 +203,7 @@ namespace LMS.Controllers
             newClass.TaughtBy = instructor;
             newClass.ListingNavigation = course;
             db.Add(newClass);
+            db.SaveChanges();
             return Json(new { success = true});
         }
 
