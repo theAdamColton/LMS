@@ -252,27 +252,17 @@ namespace LMS_CustomIdentity.Controllers
             //  subject of department matches
             //  number of course matches
             //  season and year matches
-            var thisClass = db.Classes.Where(_class => 
-                _class.Season == season &&
-                _class.Year == year &&
-                _class.ListingNavigation.Department== subject &&
-                _class.ListingNavigation.CatalogId == num
-            ).SingleOrDefault();
-            if (thisClass == null)
-            {
-                return Json(null);  
-            }
-
+            var thisCourse = db.Courses.Where(c => c.Number == num && c.Department == subject).Single();
+            var thisClass = thisCourse.Classes.Where(c => c.Season == season && c.Year == year).Single();
 
             ICollection<Assignment> assignments = null;
             if (category == null)
             {
-                var assignmentCategory = thisClass.AssignmentCategories.Where(ac => ac.Name == category).SingleOrDefault();
-                assignments = assignmentCategory.Assignments;
+                assignments = db.Assignments.Where(ass => ass.CategoryNavigation.InClass == thisClass.ClassId).ToList();
             }
             else
             {
-                assignments = db.Assignments.Where(a => a.CategoryNavigation.InClass == thisClass.ClassId).ToList();
+                assignments = db.Assignments.Where(ass => ass.CategoryNavigation.Name == category && ass.CategoryNavigation.InClass == thisClass.ClassId).ToList();
             }
 
             return Json(assignments.Select(a => new {aname = a.Name, cname = a.CategoryNavigation.Name, due = a.Due, submissions = a.Submissions.Count }).ToList());
