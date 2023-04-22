@@ -198,8 +198,20 @@ namespace LMS.Controllers
         /// <returns>A JSON object containing {success = {true/false}. 
         /// false if the student is already enrolled in the class, true otherwise.</returns>
         public IActionResult Enroll(string subject, int num, string season, int year, string uid)
-        {          
-            return Json(new { success = false});
+        {
+            var thisClass = db.Classes.Where(c => c.Season == season && c.Year == year && c.ListingNavigation.Number == num && c.ListingNavigation.DepartmentNavigation.Subject == subject).FirstOrDefault();
+            var student = db.Students.Where(s => s.UId == uid).FirstOrDefault();    
+            if (thisClass == null || student == null)
+            {
+                return Json(new { success = false});
+            }
+            var enrollment = new Enrolled();
+            enrollment.Student = student.UId;
+            enrollment.Class = thisClass.ClassId;
+            enrollment.Grade = "--";
+            db.Add(enrollment);
+            db.SaveChanges();
+            return Json(new { success = true});
         }
 
 
