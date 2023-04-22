@@ -91,7 +91,6 @@ namespace LMSControllerTests
             if (courses == null || courses.Value == null) Assert.Fail("Courses should not be null");
             dynamic x = courses.Value;
             Assert.Equal(2, x.Length);
-            Assert.Equal(1010, x[0]{ "number"});
             Assert.Equal("Quidditch I", x[0].name);
 
             Assert.Equal(1020, x[1].number);

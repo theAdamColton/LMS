@@ -243,7 +243,6 @@ namespace LMS.Controllers
         }
 
 
-
         /// <summary>
         /// Calculates a student's GPA
         /// A student's GPA is determined by the grade-point representation of the average grade in all their classes.
