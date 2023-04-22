@@ -28,12 +28,16 @@ namespace LMS.Models.LMSModels
         public virtual DbSet<Student> Students { get; set; } = null!;
         public virtual DbSet<Submission> Submissions { get; set; } = null!;
 
-        //protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-        //{
-        //    optionsBuilder
-        //        .UseLazyLoadingProxies()
-        //        .UseMySql("name=LMS:LMSConnectionString", Microsoft.EntityFrameworkCore.ServerVersion.Parse("10.1.48-mariadb"));
-        //}
+        protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+        {
+            optionsBuilder
+                .UseLazyLoadingProxies();
+            if (!optionsBuilder.IsConfigured)
+            {
+                optionsBuilder
+                    .UseMySql("name=LMS:LMSConnectionString", Microsoft.EntityFrameworkCore.ServerVersion.Parse("10.1.48-mariadb"));
+            }
+        }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

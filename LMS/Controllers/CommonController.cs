@@ -154,8 +154,6 @@ namespace LMS.Controllers
             var stud = db.Students.Where(s => s.UId == uid).SingleOrDefault();
             if (stud != null)
             {
-                System.Diagnostics.Debug.WriteLine(stud.FName, stud.LName, stud.Major); 
-                System.Diagnostics.Debug.WriteLine(stud.FName, stud.LName, stud.Major, stud.MajorNavigation.Name); 
                 return Json(new { fname = stud.FName, lname = stud.LName, uid = stud.UId, department = stud.MajorNavigation.Name });
             }
             var admin = db.Administrators.Where(a => a.UId == uid).SingleOrDefault();
