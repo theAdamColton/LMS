@@ -148,60 +148,41 @@ namespace LMS.Controllers
         public IActionResult SubmitAssignmentText(string subject, int num, string season, int year,
           string category, string asgname, string uid, string contents)
         {
-            try 
-            { 
-                uint? assID = (
-                from course in db.Courses 
-                join classes in db.Classes
-                on course.CatalogId equals classes.Listing
-                where subject == course.Department
-                && num == course.Number
-
-                join cat in db.AssignmentCategories
-                on classes.ClassId equals cat.InClass
-                where season == classes.Season
-                && year == classes.Year
-
-                join ass in db.Assignments
-                on cat.CategoryId equals ass.Category
-                where category == cat.Name
-                && asgname == ass.Name
-                select ass.AssignmentId).SingleOrDefault();
-
-                var submissionQuery = (
-                    from sub in db.Submissions
-                    where sub.Assignment == assID
-                    && sub.Student == uid
-                    select sub
-                );
-                
-                if(submissionQuery.FirstOrDefault() == null)
-                {
-                    Submission submission = new Submission();
-                    submission.Assignment = assID.Value;
-                    submission.Student = uid;
-                    submission.SubmissionContents = contents;
-                    submission.Score = 0;
-                    submission.Time = DateTime.Now;
-                    db.Add(submission);
-                    db.SaveChanges();
-                }
-                else
-                {
-                    submissionQuery.ToList().ForEach(submission =>
-                    {
-                        submission.SubmissionContents = contents;
-                        submission.Time = DateTime.Now;
-                    });
-                }
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine(ex.Message);
+            var course = db.Courses.Where(c => c.Department == subject && c.Number == num).SingleOrDefault();
+            if (course == null)
                 return Json(new { success = false });
-            }
 
-            return Json(new { success = false });
+            var thisClass = course.Classes.Where(c => c.Season == season && c.Year == year).SingleOrDefault();
+            if (thisClass == null)
+                return Json(new { success = false });
+
+            var assCat = thisClass.AssignmentCategories.Where(asscat => asscat.Name == category).SingleOrDefault();
+            if (assCat == null)
+                return Json(new { success = false });
+
+            var ass = assCat.Assignments.Where(ass => ass.Name == asgname).SingleOrDefault();
+            if (ass == null)
+                return Json(new { success = false });
+
+            var student = db.Students.Where(s => s.UId == uid).SingleOrDefault();
+            if (student == null)
+                return Json(new { success = false });
+
+            var submission = new Submission();
+            submission.SubmissionContents = contents;
+            submission.Assignment = ass.AssignmentId;
+            submission.Student = student.UId;
+            submission.Time = DateTime.Now;
+            submission.Score = 0;
+
+            // add or update
+            if (db.Submissions.Where(s => s.Assignment == submission.Assignment && s.Student == submission.Student).Any()) 
+                db.Update(submission);
+            else
+                db.Add(submission);
+
+            db.SaveChanges();
+            return Json(new { success = true });
         }
 
 
