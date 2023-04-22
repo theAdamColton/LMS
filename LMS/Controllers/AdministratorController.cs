@@ -65,6 +65,7 @@ namespace LMS.Controllers
             } 
             catch (Exception ex)
             {
+                
                 System.Diagnostics.Debug.WriteLine(ex.Message);
                 db.SaveChanges();
                 return Json(new {success = false});

@@ -112,26 +112,36 @@ namespace LMS.Controllers
         public IActionResult GetAssignmentsInClass(string subject, int num, string season, int year, string uid)
         {
             var query = (
-                from submission in db.Submissions 
-                join assignment in db.Assignments
-                on submission.Assignment equals assignment.AssignmentId
-                join assCat in db.AssignmentCategories
-                on assignment.Category equals assCat.CategoryId
-                join classes in db.Classes 
-                on assCat.InClass equals classes.ClassId
-                join courses in db.Courses
-                on classes.Listing equals courses.CatalogId
-                where uid == submission.Student
-                && subject == courses.Department
-                && num == courses.Number
-                && season == classes.Season
-                && year == classes.Year
+                from course in db.Courses 
+                join classes in db.Classes
+                on course.CatalogId equals classes.Listing
+                into classListings
+
+                from c in classListings.DefaultIfEmpty()
+                join assCat in db.AssignmentCategories  
+                on c.ClassId equals assCat.InClass
+                into catTable
+
+                from cat in catTable.DefaultIfEmpty()
+                join ass in db.Assignments
+                on cat.CategoryId equals ass.Category
+                into assTable
+
+                from ass in assTable.DefaultIfEmpty()
+                join sub in db.Submissions
+                on ass.AssignmentId equals sub.Assignment
+
+                where course.Department == subject 
+                && course.Number == num
+                && c.Season == season
+                && c.Year == year
+                && sub.Student == uid
                 select new
                 {
-                    aname = assignment.Name,
-                    cname = assCat.Name,
-                    due = assignment.Due,
-                    score = submission.Score,
+                    aname = ass.Name,
+                    cname = cat.Name,
+                    due = ass.Due,
+                    score = sub.Score,
                 });
             return Json(query.ToArray());
         }
@@ -164,18 +174,20 @@ namespace LMS.Controllers
                 from course in db.Courses 
                 join classes in db.Classes
                 on course.CatalogId equals classes.Listing
-                where subject == course.Department
-                && num == course.Number
+                into classTable
 
+                from classes in classTable.DefaultIfEmpty()
                 join cat in db.AssignmentCategories
                 on classes.ClassId equals cat.InClass
-                where season == classes.Season
-                && year == classes.Year
-
+                into catTable
+                
+                from cat in catTable.DefaultIfEmpty()
                 join ass in db.Assignments
                 on cat.CategoryId equals ass.Category
                 where category == cat.Name
                 && asgname == ass.Name
+                && season == classes.Season
+                && year == classes.Year
                 select ass.AssignmentId).SingleOrDefault();
 
                 var submissionQuery = (
@@ -202,6 +214,7 @@ namespace LMS.Controllers
                     {
                         submission.SubmissionContents = contents;
                         submission.Time = DateTime.Now;
+                        db.SaveChanges();
                     });
                 }
             }
@@ -211,7 +224,7 @@ namespace LMS.Controllers
                 return Json(new { success = false });
             }
 
-            return Json(new { success = false });
+            return Json(new { success = true });
         }
 
 
@@ -227,19 +240,36 @@ namespace LMS.Controllers
         /// false if the student is already enrolled in the class, true otherwise.</returns>
         public IActionResult Enroll(string subject, int num, string season, int year, string uid)
         {
-            var thisClass = db.Classes.Where(c => c.Season == season && c.Year == year && c.ListingNavigation.Number == num && c.ListingNavigation.DepartmentNavigation.Subject == subject).FirstOrDefault();
-            var student = db.Students.Where(s => s.UId == uid).FirstOrDefault();    
-            if (thisClass == null || student == null)
+            try
             {
-                return Json(new { success = false});
+                var cl = (
+                    from courses in db.Courses
+                    join classes in db.Classes
+                    on courses.CatalogId equals classes.Listing
+                    where courses.Department == subject
+                    && courses.Number == num
+                    && classes.Season == season
+                    && classes.Year == year
+                    select new
+                    {
+                        classId = classes.ClassId
+                    }
+
+                ).FirstOrDefault();
+                if (cl == null) return Json(new { success = false });
+
+                var enrollment = new Enrolled();
+                enrollment.Student = uid;
+                enrollment.Class = cl.classId;
+                enrollment.Grade = "--";
+                db.Add(enrollment);
+                db.SaveChanges();
+                return Json(new { success = true });
             }
-            var enrollment = new Enrolled();
-            enrollment.Student = student.UId;
-            enrollment.Class = thisClass.ClassId;
-            enrollment.Grade = "--";
-            db.Add(enrollment);
-            db.SaveChanges();
-            return Json(new { success = true});
+            catch(Exception ex)
+            {
+                return Json(new { success = false });
+            }
         }
 
 
