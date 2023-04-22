@@ -209,8 +209,7 @@ namespace LMS.Controllers
                     from classes in db.Classes
                     where classes.Season == season
                     && classes.Year == year
-                    && !(startTime >= classes.EndTime || endTime <= classes.StartTime)
-                    
+                    && startTime < classes.EndTime && endTime > classes.StartTime
                     && classes.Location == location
                     select classes
                     ).Any();

@@ -132,7 +132,7 @@ namespace LMS_CustomIdentity.Controllers
                     int totalPoints = ac.Assignments.Select(ass => (int)ass.MaxPoints).Sum();
 
                     // Avoids dividing by zero. If the total points is zero, then the score is 1.0 / 1.0
-                    double score = totalPoints == 0? 1.0 :  (double)earnedPoints / (double)totalPoints;
+                    double score = totalPoints == 0? 0.0 :  (double)earnedPoints / (double)totalPoints;
 
                     // Multiplies the percentage by the category weight. For
                     // example, if the category weight is 15, then the scaled
@@ -144,9 +144,16 @@ namespace LMS_CustomIdentity.Controllers
             ).Sum();
             // IMPORTANT - there is no rule that assignment
             // category weights must sum to 100. Therefore, we have to re-scale
-            var totalWeights = thisClass.AssignmentCategories.Select(ac => (int)ac.Weight).Sum();
+            // This takes the sum of all assignment category weights that are non empty
+            var totalWeights = thisClass.AssignmentCategories.Select(ac => {
+                    var totalPoints = ac.Assignments.Select(ass => (int)ass.MaxPoints).Sum();
+                if (totalPoints == 0)
+                    return 0;
+                else
+                    return (int)ac.Weight;
+                }).Sum();
             // Avoids dividing by zero; in the case that all assignment weights
-            // are zero, the total scaled score is 100.0 / 100.0
+            // are zero, the total scaled score is 0.0 / 100.0
             double allTotalScaled = totalWeights == 0 ? 100.0 : (double)allTotalUnscaled * (100 / (double)totalWeights);
 
             // Letter 	Scoring
@@ -211,50 +218,22 @@ namespace LMS_CustomIdentity.Controllers
         /// <returns>The JSON array</returns>
         public IActionResult GetStudentsInClass(string subject, int num, string season, int year)
         {
-            try
-            {
-                var query = (
-                    from courses in db.Courses
-                    join
-                    classes in db.Classes
-                    on courses.CatalogId equals classes.Listing
-                    into classesTable
-
-                    from classes in classesTable.DefaultIfEmpty()
-                    join enrolled in db.Enrolleds
-                    on classes.ClassId equals enrolled.Class
-                    into enrolledTable
-
-                    from enrolls in enrolledTable.DefaultIfEmpty()
-                    join stud in db.Students
-                    on enrolls.Student equals stud.UId
-                    into studentsTable
-
-                    where
-                    courses.Department == subject
-                    && courses.Number == num
-                    && classes.Season == season
-                    && classes.Year == year
-
-                    from astud in studentsTable
-                    select new
-                    {
-                        fname = astud.FName,
-                        lname = astud.LName,
-                        uid = astud.UId,
-                        dob = astud.Dob,
-                        grade = enrolls.Grade
-
-                    }
-
-                    );
-
-                return Json(query.ToArray());
-            }
-            catch(Exception exp)
-            {
+            var thisClass = db.Classes.Where(c => c.ListingNavigation.Department == subject && c.ListingNavigation.Number == num && c.Season == season && c.Year == year).SingleOrDefault();
+            if (thisClass == null)
                 return Json(null);
-            }
+
+            var result = thisClass.Enrolleds.Select(e => {
+                var student = e.StudentNavigation;
+                return new
+                {
+                    fname = student.FName,
+                    lname = student.LName,
+                    uid = student.UId,
+                    dob = student.Dob,
+                    grade = e.Grade,
+                };
+            }).ToArray();
+            return Json(result);
         }
 
 
@@ -433,56 +412,30 @@ namespace LMS_CustomIdentity.Controllers
         /// <returns>A JSON object containing success = true/false</returns>
         public IActionResult GradeSubmission(string subject, int num, string season, int year, string category, string asgname, string uid, int score)
         {
-            try
-            {
-                uint? subid = (
-                from course in db.Courses
-                join classes in db.Classes
-                on course.CatalogId equals classes.Listing
-                into classTable
+            var thisClass = db.Classes.Where(c => c.ListingNavigation.Department == subject && c.ListingNavigation.Number == num && c.Season == season && c.Year == year).SingleOrDefault();
+            var student = db.Students.Where(s => s.UId == uid).SingleOrDefault();
 
-                from classes in classTable.DefaultIfEmpty()
-                join cat in db.AssignmentCategories
-                on classes.ClassId equals cat.InClass
-                into catTable
-
-                from cat in catTable.DefaultIfEmpty()
-                join ass in db.Assignments
-                on cat.CategoryId equals ass.Category
-                where category == cat.Name
-                && asgname == ass.Name
-                && season == classes.Season
-                && year == classes.Year
-                select ass.AssignmentId).SingleOrDefault();
-
-                var query =
-                    (
-                    from asub in db.Submissions
-                    where asub.Student == uid
-                    && asub.Assignment == subid
-                    select asub
-                    ).SingleOrDefault() ;
-
-
-                var thisClass = db.Classes.Where(c => c.ListingNavigation.Department == subject && c.ListingNavigation.Number == num && c.Season == season && c.Year == year).SingleOrDefault();
-                var student = db.Students.Where(s => s.UId == uid).SingleOrDefault();
-
-                if (thisClass == null || student == null || query == null)
-                    return Json(new { success = false });
-
-                query.Score = (uint)score;
-                db.Update(query);
-                db.SaveChanges();
-
-                // updates grade
-                UpdateGrade(student, thisClass);
-
-                return Json(new { success = true });
-            }
-            catch(Exception exp)
-            {
+            if (thisClass == null)
                 return Json(new { success = false });
-            }
+
+            var assignment = db.Assignments.Where(ass => ass.Name == asgname && ass.CategoryNavigation.Name == category && ass.CategoryNavigation.InClass == thisClass.ClassId).SingleOrDefault();
+
+            if (student == null || assignment == null)
+                return Json(new { success = false });
+
+            var submission = assignment.Submissions.Where(sub => sub.Student == uid).SingleOrDefault();
+            if (submission == null)
+                return Json(new { success = false });
+
+
+            submission.Score = (uint)score;
+            db.Update(submission);
+            db.SaveChanges();
+
+            // updates grade
+            UpdateGrade(student, thisClass);
+
+            return Json(new { success = true });
         }
 
 
