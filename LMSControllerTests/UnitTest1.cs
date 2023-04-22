@@ -92,7 +92,6 @@ namespace LMSControllerTests
             Assert.Equal(2, qquery.Count());
             Assert.Equal("QUID", qquery.First().dept);
             Assert.Equal((uint) 1010, qquery.First().number);
-            Assert.Equal()
         }
 
         [Fact]
